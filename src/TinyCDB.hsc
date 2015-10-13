@@ -9,7 +9,7 @@ import Foreign.C.Types
 
 #include <cdb.h>
 
-data CDB = CDB { position::CInt, length::CInt }
+data CDB = CDB { position::CUInt, len::CUInt }
 data CDBM = CDBM
 type CDBHandle = Ptr CDB
 
@@ -32,13 +32,17 @@ instance Storable CDB where
   sizeOf _ = #{size struct cdb}
   peek cdbHandle = do
     position <- (#peek struct cdb, cdb_vpos) cdbHandle
-    length <- (#peek struct cdb, cdb_vlen) cdbHandle
-    return $ CDB position length
+    len <- (#peek struct cdb, cdb_vlen) cdbHandle
+    return $ CDB position len
+  poke cdbHandle (CDB position len) = do
+    (#poke struct cdb, cdb_vpos) cdbHandle position
+    (#poke struct cdb, cdb_vlen) cdbHandle len
 
 instance Storable CDBM where
   alignment _ = #{alignment struct cdb_make}
   sizeOf _ = #{size struct cdb_make}
   peek _ = return CDBM
+  poke cdbmHandle cdbm = return ()
 
 foreign import ccall unsafe "cdb.h cdb_make_start" cdb_make_start :: Ptr CDBM -> CInt -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_make_add" cdb_make_add :: Ptr CDBM -> Ptr Word16 -> CUInt -> Ptr Word16 -> CUInt -> IO CInt
@@ -46,4 +50,9 @@ foreign import ccall unsafe "cdb.h cdb_make_exists" cdb_make_exists :: Ptr CDBM 
 foreign import ccall unsafe "cdb.h cdb_make_find" cdb_make_find :: Ptr CDBM -> CString -> CUInt -> CDBPutMode -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_make_put" cdb_make_put :: Ptr CDBM -> CString -> CUInt -> CString -> CUInt -> CDBPutMode -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_make_finish" cdb_make_finish :: Ptr CDBM -> IO CInt
+
+foreign import ccall unsafe "cdb.h cdb_init" cdb_init :: Ptr CDB -> CInt -> IO CInt
+foreign import ccall unsafe "cdb.h cdb_find" cdb_find :: Ptr CDB -> Ptr Word16 -> CUInt -> IO CInt
+foreign import ccall unsafe "cdb.h cdb_read" cdb_read :: Ptr CDB -> Ptr Word16 -> CUInt -> CUInt -> IO CInt
+foreign import ccall unsafe "cdb.h cdb_free" cdb_free :: Ptr CDB -> IO ()
 
