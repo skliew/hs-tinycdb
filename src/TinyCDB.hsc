@@ -45,14 +45,14 @@ instance Storable CDBM where
   poke cdbmHandle cdbm = return ()
 
 foreign import ccall unsafe "cdb.h cdb_make_start" cdb_make_start :: Ptr CDBM -> CInt -> IO CInt
-foreign import ccall unsafe "cdb.h cdb_make_add" cdb_make_add :: Ptr CDBM -> Ptr Word16 -> CUInt -> Ptr Word16 -> CUInt -> IO CInt
+foreign import ccall unsafe "cdb.h cdb_make_add" cdb_make_add :: Ptr CDBM -> CString -> CUInt -> CString -> CUInt -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_make_exists" cdb_make_exists :: Ptr CDBM -> CString -> CUInt -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_make_find" cdb_make_find :: Ptr CDBM -> CString -> CUInt -> CDBPutMode -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_make_put" cdb_make_put :: Ptr CDBM -> CString -> CUInt -> CString -> CUInt -> CDBPutMode -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_make_finish" cdb_make_finish :: Ptr CDBM -> IO CInt
 
 foreign import ccall unsafe "cdb.h cdb_init" cdb_init :: Ptr CDB -> CInt -> IO CInt
-foreign import ccall unsafe "cdb.h cdb_find" cdb_find :: Ptr CDB -> Ptr Word16 -> CUInt -> IO CInt
-foreign import ccall unsafe "cdb.h cdb_read" cdb_read :: Ptr CDB -> Ptr Word16 -> CUInt -> CUInt -> IO CInt
+foreign import ccall unsafe "cdb.h cdb_find" cdb_find :: Ptr CDB -> CString -> CUInt -> IO CInt
+foreign import ccall unsafe "cdb.h cdb_read" cdb_read :: Ptr CDB -> CString -> CUInt -> CUInt -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_free" cdb_free :: Ptr CDB -> IO ()
 

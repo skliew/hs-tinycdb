@@ -9,6 +9,7 @@ import Foreign.Marshal.Alloc
 import Data.Map
 import Data.Text.Foreign
 import Foreign.Storable
+import Foreign.Ptr ( castPtr )
 
 import TinyCDB (
   CDBM, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
@@ -23,7 +24,7 @@ fdFromFile fileName = do
 addKeyValue cdbm (k, v) = do
   useAsPtr k $ \kPtr kLen -> do
     useAsPtr v $ \vPtr vLen -> do
-      cdb_make_add cdbm kPtr (fromIntegral kLen) vPtr (fromIntegral vLen)
+      cdb_make_add cdbm (castPtr kPtr) (fromIntegral kLen) (castPtr vPtr) (fromIntegral vLen)
 
 readCdb' cdb key = do
   (CDB vLen vPos) <- peek cdb
@@ -35,7 +36,7 @@ readCdb' cdb key = do
 
 readCdb cdb key = do
   useAsPtr key $ \kPtr kLen -> do
-    result <- cdb_find cdb kPtr (fromIntegral kLen)
+    result <- cdb_find cdb (castPtr kPtr) (fromIntegral kLen)
     if result > 0
     then do
       val <- readCdb' cdb key
