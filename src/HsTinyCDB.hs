@@ -28,10 +28,12 @@ addKeyValue cdbm k v = do
       cdb_make_add cdbm (castPtr kPtr) (fromIntegral kLen) (castPtr vPtr) (fromIntegral vLen)
 
 readCdb' cdb key = do
-  (CDB vLen vPos) <- peek cdb
+  (CDB vPos vLen) <- peek cdb
   val <- allocaBytes (fromIntegral vLen) (\val -> do
            cdb_read cdb val vLen vPos
-           return val
+           -- Is there a better way to construct a CStringLen?
+           let cStringLen = (val, (fromIntegral vLen))
+           peekCStringLen cStringLen
          )
   return val
 
