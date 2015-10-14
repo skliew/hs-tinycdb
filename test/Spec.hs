@@ -3,28 +3,33 @@ module Main where
 
 import Data.Map (fromList)
 import HsTinyCDB ( makeCdb, useCdb, readCdb, addKeyValue )
+import Test.Hspec
 import System.Posix.Files
 
--- dict = fromList [("何", "これ"), ("生姜", "ない")]
 insertToCdb cdbm = do
   addKeyValue cdbm "1" "2"
   addKeyValue cdbm "3" "4"
 
-readCdbTest cdb = do
-  value <- readCdb cdb "3"
-  case value of
-    Just a -> putStrLn "\nOK"
-    _ -> error "NG"
-  return ()
+testReadCdb = do
+  describe "readCdb" $ do
+    it "should read a cdb file correctly" $ do
+      useCdb "test.cdb" $ \cdb -> do
+        result <- readCdb cdb "3"
+        result `shouldBe` Just "4"
 
-testCdb fileName = do
-  result <- useCdb fileName (\cdb -> readCdbTest cdb)
-  return result
+testMakeCdb =
+  describe "makeCdb" $ do
+    it "should make a cdb file" $ do
+      makeResult <- makeCdb "test.cdb" insertToCdb
+      makeResult `shouldBe` 0
+
+cleanUp = removeLink "test.cdb"
 
 main :: IO ()
 main = do
-  makeCdb "test.cdb" insertToCdb
-  testCdb "test.cdb"
-  removeLink "test.cdb"
-  return ()
+  hspec $ do
+    testMakeCdb
+    testReadCdb
+  cleanUp
+
 
