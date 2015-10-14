@@ -21,7 +21,8 @@ fdFromFile fileName = do
   fd <- handleToFd handle
   return fd
 
-addKeyValue cdbm (k, v) = do
+-- TODO: Provide a Monad to capture failures
+addKeyValue cdbm k v = do
   useAsPtr k $ \kPtr kLen -> do
     useAsPtr v $ \vPtr vLen -> do
       cdb_make_add cdbm (castPtr kPtr) (fromIntegral kLen) (castPtr vPtr) (fromIntegral vLen)
@@ -43,13 +44,12 @@ readCdb cdb key = do
       return $ Just val
     else return Nothing
 
-makeCdb fileName dict = do
+makeCdb fileName action = do
   let tmpFileName = fileName ++ ".tmp"
   fd <- fdFromFile tmpFileName
   cdbResult <- alloca $ \cdbm -> do
                  cdb_make_start cdbm (fromIntegral fd)
-                 let keyValuePairs = assocs dict
-                 mapM_ (addKeyValue cdbm) keyValuePairs
+                 action cdbm
                  cdb_make_finish cdbm
   handle <- fdToHandle fd
   hClose handle

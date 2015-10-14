@@ -2,11 +2,13 @@
 module Main where
 
 import Data.Map (fromList)
-import HsTinyCDB ( makeCdb, useCdb, readCdb )
+import HsTinyCDB ( makeCdb, useCdb, readCdb, addKeyValue )
 import System.Posix.Files
 
 -- dict = fromList [("何", "これ"), ("生姜", "ない")]
-dict = fromList [("1", "2"), ("3", "4")]
+insertToCdb cdbm = do
+  addKeyValue cdbm "1" "2"
+  addKeyValue cdbm "3" "4"
 
 readCdbTest cdb = do
   value <- readCdb cdb "3"
@@ -21,7 +23,7 @@ testCdb fileName = do
 
 main :: IO ()
 main = do
-  makeCdb "test.cdb" dict
+  makeCdb "test.cdb" insertToCdb
   testCdb "test.cdb"
   removeLink "test.cdb"
   return ()
