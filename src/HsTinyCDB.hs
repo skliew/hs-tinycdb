@@ -15,15 +15,15 @@ import TinyCDB (
   CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
   cdb_init, cdb_find, cdb_free, cdb_read )
 
-data WriteCdb m a = WriteCdb { runWriteCdb :: m (Either String a) }
+data WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either String a) }
 
 instance Monad m => Monad (WriteCdb m) where
-  return a = WriteCdb . return $ Right a
-  x >>= f = WriteCdb $ do
-              value <- runWriteCdb x
+  return a = WriteCdb $ \cdbm -> return $ Right a
+  x >>= f = WriteCdb $ \cdbm -> do
+              value <- runWriteCdb x cdbm
               case value of
                 Left error -> return $ Left error
-                Right v -> runWriteCdb $ f v
+                Right v -> runWriteCdb (f v) cdbm
 
 fdFromFile :: String -> IO System.Posix.Types.Fd
 fdFromFile fileName = do
@@ -31,8 +31,8 @@ fdFromFile fileName = do
   fd <- handleToFd handle
   return fd
 
-addKeyValue :: CDBMHandle -> Text -> Text -> WriteCdb IO Int
-addKeyValue cdbm k v = WriteCdb $ do
+addKeyValue :: Text -> Text -> WriteCdb IO Int
+addKeyValue k v = WriteCdb $ \cdbm -> do
   useAsPtr k $ \kPtr kLen -> do
     useAsPtr v $ \vPtr vLen -> do
       result <- cdb_make_add cdbm (castPtr kPtr) (fromIntegral kLen) (castPtr vPtr) (fromIntegral vLen)
@@ -59,21 +59,19 @@ readCdb cdb key = do
       return $ Just val
     else return Nothing
 
-cdbMakeFinish cdbm = WriteCdb $ do
+cdbMakeFinish = WriteCdb $ \cdbm -> do
   result <- cdb_make_finish cdbm
   case result of
     0 -> return $ Right 0
     _ -> return $ Left "Failed in cdb_make_finish"
 
-makeCdb :: String -> (CDBMHandle -> WriteCdb IO Int) -> IO (Either String Int)
+makeCdb :: String -> WriteCdb IO Int -> IO (Either String Int)
 makeCdb fileName action = do
   let tmpFileName = fileName ++ ".tmp"
   fd <- fdFromFile tmpFileName
   cdbResult <- alloca $ \cdbm -> do
                  cdb_make_start cdbm (fromIntegral fd)
-                 result <- runWriteCdb $ do
-                             action cdbm
-                             cdbMakeFinish cdbm
+                 result <- runWriteCdb (action >> cdbMakeFinish) cdbm
                  return result
   handle <- fdToHandle fd
   hClose handle

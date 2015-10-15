@@ -6,9 +6,9 @@ import HsTinyCDB ( makeCdb, useCdb, readCdb, addKeyValue )
 import Test.Hspec
 import System.Posix.Files
 
-insertToCdb cdbm = do
-  addKeyValue cdbm "1" "2"
-  addKeyValue cdbm "3" "4"
+insertToCdb = do
+  addKeyValue "1" "2"
+  addKeyValue "3" "4"
 
 testReadCdb = do
   describe "readCdb" $ do
