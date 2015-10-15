@@ -16,7 +16,7 @@ import TinyCDB (
   CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
   cdb_init, cdb_find, cdb_free, cdb_read )
 
-data WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either Text a) }
+newtype WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either Text a) }
 
 instance Monad m => Monad (WriteCdb m) where
   return a = WriteCdb $ \cdbm -> return $ Right a
@@ -25,8 +25,6 @@ instance Monad m => Monad (WriteCdb m) where
               case value of
                 Left error -> return $ Left error
                 Right v -> runWriteCdb (f v) cdbm
-
-data ReadCdb m a = ReadCdb { runReadCdb :: CDBMHandle -> m (Either Text a) }
 
 fdFromFile :: FilePath -> IO System.Posix.Types.Fd
 fdFromFile fileName = do
@@ -43,24 +41,27 @@ addKeyValue k v = WriteCdb $ \cdbm -> do
         0 -> return $ Right 0
         otherwise -> return $ Left "Failed in cdb_make_add"
 
-readCdb' cdb key = do
+readCdb' key cdb = do
   (CDB vPos vLen) <- peek cdb
   val <- allocaBytes (fromIntegral vLen) (\val -> do
-           cdb_read cdb val vLen vPos
-           -- Is there a better way to construct a CStringLen?
-           let cStringLen = (val, (fromIntegral vLen))
-           peekCStringLen cStringLen
+           readResult <- cdb_read cdb val vLen vPos
+           case readResult of
+             0 -> do
+               let cStringLen = (val, (fromIntegral vLen))
+               text <- peekCStringLen cStringLen
+               fmap Just (peekCStringLen cStringLen)
+             otherwise -> return $ Nothing
          )
   return val
 
-readCdb cdb key = do
+readCdb key cdb = do
   useAsPtr key $ \kPtr kLen -> do
     result <- cdb_find cdb (castPtr kPtr) (fromIntegral kLen)
     if result > 0
     then do
-      val <- readCdb' cdb key
-      return $ Just val
-    else return Nothing
+      val <- readCdb' key cdb
+      return $ Right val
+    else return $ Left $ "Failed to find key "
 
 cdbMakeFinish = WriteCdb $ \cdbm -> do
   result <- cdb_make_finish cdbm

@@ -14,8 +14,8 @@ testReadCdb = do
   describe "readCdb" $ do
     it "should read a cdb file correctly" $ do
       useCdb "test.cdb" $ \cdb -> do
-        result <- readCdb cdb "3"
-        result `shouldBe` Just "4"
+        result <- readCdb "3" cdb
+        result `shouldBe` (Right (Just "4"))
 
 testMakeCdb =
   describe "makeCdb" $ do
