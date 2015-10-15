@@ -12,6 +12,7 @@ import Foreign.C.Types
 data CDB = CDB { position::CUInt, len::CUInt }
 data CDBM = CDBM
 type CDBHandle = Ptr CDB
+type CDBMHandle = Ptr CDBM
 
 newtype CDBPutMode = CDBPutMode { mode :: CInt }
 #{enum CDBPutMode, CDBPutMode,

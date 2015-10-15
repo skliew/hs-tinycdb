@@ -21,7 +21,7 @@ testMakeCdb =
   describe "makeCdb" $ do
     it "should make a cdb file" $ do
       makeResult <- makeCdb "test.cdb" insertToCdb
-      makeResult `shouldBe` 0
+      makeResult `shouldBe` (Right 0)
 
 cleanUp = removeLink "test.cdb"
 
