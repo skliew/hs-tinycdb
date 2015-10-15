@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module HsTinyCDB where
 
 import System.Posix.IO
@@ -15,7 +16,7 @@ import TinyCDB (
   CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
   cdb_init, cdb_find, cdb_free, cdb_read )
 
-data WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either String a) }
+data WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either Text a) }
 
 instance Monad m => Monad (WriteCdb m) where
   return a = WriteCdb $ \cdbm -> return $ Right a
@@ -25,7 +26,9 @@ instance Monad m => Monad (WriteCdb m) where
                 Left error -> return $ Left error
                 Right v -> runWriteCdb (f v) cdbm
 
-fdFromFile :: String -> IO System.Posix.Types.Fd
+data ReadCdb m a = ReadCdb { runReadCdb :: CDBMHandle -> m (Either Text a) }
+
+fdFromFile :: FilePath -> IO System.Posix.Types.Fd
 fdFromFile fileName = do
   handle <- openBinaryFile fileName ReadWriteMode
   fd <- handleToFd handle
@@ -65,7 +68,7 @@ cdbMakeFinish = WriteCdb $ \cdbm -> do
     0 -> return $ Right 0
     _ -> return $ Left "Failed in cdb_make_finish"
 
-makeCdb :: String -> WriteCdb IO Int -> IO (Either String Int)
+makeCdb :: FilePath -> WriteCdb IO Int -> IO (Either Text Int)
 makeCdb fileName action = do
   let tmpFileName = fileName ++ ".tmp"
   fd <- fdFromFile tmpFileName
