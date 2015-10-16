@@ -11,6 +11,8 @@ import Data.Map
 import Data.Text.Foreign
 import Foreign.Storable
 import Foreign.Ptr ( castPtr )
+import Control.Applicative
+import Control.Monad ( ap, liftM )
 
 import TinyCDB (
   CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
@@ -25,6 +27,13 @@ instance Monad m => Monad (WriteCdb m) where
               case value of
                 Left error -> return $ Left error
                 Right v -> runWriteCdb (f v) cdbm
+
+instance Monad m => Functor (WriteCdb m) where
+  fmap = liftM
+
+instance Monad m => Applicative (WriteCdb m) where
+  pure = return
+  (<*>) = ap
 
 fdFromFile :: FilePath -> IO System.Posix.Types.Fd
 fdFromFile fileName = do
