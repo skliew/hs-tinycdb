@@ -13,10 +13,12 @@ import Foreign.Storable
 import Foreign.Ptr ( castPtr )
 import Control.Applicative
 import Control.Monad ( ap, liftM )
+import Data.Maybe ( maybeToList )
 
 import TinyCDB (
-  CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
-  cdb_init, cdb_find, cdb_free, cdb_read )
+  CDBFindHandle, CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
+  cdb_init, cdb_find, cdb_free, cdb_read, cdb_findinit, cdb_findnext
+  )
 
 newtype WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either Text a) }
 
@@ -50,7 +52,7 @@ addKeyValue k v = WriteCdb $ \cdbm -> do
         0 -> return $ Right 0
         otherwise -> return $ Left "Failed in cdb_make_add"
 
-readCdb' key cdb = do
+readCdb' cdb = do
   (CDB vPos vLen) <- peek cdb
   val <- allocaBytes (fromIntegral vLen) (\val -> do
            readResult <- cdb_read cdb val vLen vPos
@@ -68,9 +70,30 @@ readCdb key cdb = do
     result <- cdb_find cdb (castPtr kPtr) (fromIntegral kLen)
     if result > 0
     then do
-      val <- readCdb' key cdb
+      val <- readCdb' cdb
       return $ Right val
     else return $ Left $ "Failed to find key "
+
+readAll cdbf cdb = readAll' cdbf []
+  where
+    readAll' cdbf result = do
+      findResult <- cdb_findnext cdbf
+      if findResult > 0
+      then do
+        val <- readCdb' cdb
+        let result' = result ++ (maybeToList val)
+        readAll' cdbf result'
+      else return result
+
+readAllCdb key cdb = do
+  useAsPtr key $ \kPtr kLen -> do
+    alloca $ \cdbf -> do
+      findInitResult <- cdb_findinit cdbf cdb (castPtr kPtr) (fromIntegral kLen)
+      case findInitResult of
+        1 -> do
+          values <- readAll cdbf cdb
+          return $ Right values
+        otherwise -> return $ Left "Failed in cdb_find_init"
 
 cdbMakeFinish = WriteCdb $ \cdbm -> do
   result <- cdb_make_finish cdbm
@@ -98,6 +121,7 @@ useCdb fileName action = do
                  result <- action cdb
                  cdb_free cdb
                  return result
-  fmap hClose (fdToHandle fd)
+  handle <- fdToHandle fd
+  hClose handle
   return cdbResult
 

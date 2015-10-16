@@ -11,8 +11,10 @@ import Foreign.C.Types
 
 data CDB = CDB { position::CUInt, len::CUInt }
 data CDBM = CDBM
+data CDBFind = CDBFind
 type CDBHandle = Ptr CDB
 type CDBMHandle = Ptr CDBM
+type CDBFindHandle = Ptr CDBFind
 
 newtype CDBPutMode = CDBPutMode { mode :: CInt }
 #{enum CDBPutMode, CDBPutMode,
@@ -39,6 +41,12 @@ instance Storable CDB where
     (#poke struct cdb, cdb_vpos) cdbHandle position
     (#poke struct cdb, cdb_vlen) cdbHandle len
 
+instance Storable CDBFind where
+  alignment _ = #{alignment struct cdb_find}
+  sizeOf _ = #{size struct cdb_find}
+  peek cdbFindHandle = return CDBFind
+  poke cdbFindHandle cdbFind = return ()
+
 instance Storable CDBM where
   alignment _ = #{alignment struct cdb_make}
   sizeOf _ = #{size struct cdb_make}
@@ -54,6 +62,8 @@ foreign import ccall unsafe "cdb.h cdb_make_finish" cdb_make_finish :: Ptr CDBM 
 
 foreign import ccall unsafe "cdb.h cdb_init" cdb_init :: Ptr CDB -> CInt -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_find" cdb_find :: Ptr CDB -> CString -> CUInt -> IO CInt
+foreign import ccall unsafe "cdb.h cdb_findinit" cdb_findinit :: Ptr CDBFind -> Ptr CDB -> CString -> CUInt -> IO CInt
+foreign import ccall unsafe "cdb.h cdb_findnext" cdb_findnext :: Ptr CDBFind -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_read" cdb_read :: Ptr CDB -> CString -> CUInt -> CUInt -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_free" cdb_free :: Ptr CDB -> IO ()
 
