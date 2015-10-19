@@ -16,7 +16,7 @@ import Control.Monad ( ap, liftM )
 import Data.Maybe ( maybeToList )
 
 import TinyCDB (
-  CDBFindHandle, CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
+  CDBHandle, CDBFindHandle, CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
   cdb_init, cdb_find, cdb_free, cdb_read, cdb_findinit, cdb_findnext
   )
 
@@ -52,6 +52,7 @@ addKeyValue k v = WriteCdb $ \cdbm -> do
         0 -> return $ Right 0
         otherwise -> return $ Left "Failed in cdb_make_add"
 
+readCdb' :: CDBHandle -> IO (Either Text Text)
 readCdb' cdb = do
   (CDB vPos vLen) <- peek cdb
   val <- allocaBytes (fromIntegral vLen) (\val -> do
@@ -60,31 +61,40 @@ readCdb' cdb = do
              0 -> do
                let cStringLen = (val, (fromIntegral vLen))
                text <- peekCStringLen cStringLen
-               fmap Just (peekCStringLen cStringLen)
-             otherwise -> return $ Nothing
+               fmap Right (peekCStringLen cStringLen)
+             otherwise -> return $ Left "unable to read value"
          )
   return val
 
+-- TODO use EitherT or something to make this more elegant
 readCdb key cdb = do
   useAsPtr key $ \kPtr kLen -> do
     result <- cdb_find cdb (castPtr kPtr) (fromIntegral kLen)
     if result > 0
     then do
       val <- readCdb' cdb
-      return $ Right val
+      case val of
+        Right val' -> return $ Right val'
+        Left errMsg -> return $ Left errMsg
     else return $ Left $ "Failed to find key "
 
+readAll :: CDBFindHandle -> CDBHandle -> IO (Either Text [Text])
 readAll cdbf cdb = readAll' cdbf []
   where
+    readAll' :: CDBFindHandle -> [Text] -> IO (Either Text [Text])
     readAll' cdbf result = do
       findResult <- cdb_findnext cdbf
       if findResult > 0
       then do
         val <- readCdb' cdb
-        let result' = result ++ (maybeToList val)
-        readAll' cdbf result'
-      else return result
+        case val of
+          Right val' -> do
+            let result' = result ++ [val']
+            readAll' cdbf result'
+          Left errMsg -> return $ Left errMsg
+      else return $ Right result
 
+readAllCdb :: Text -> CDBHandle -> IO (Either Text [Text])
 readAllCdb key cdb = do
   useAsPtr key $ \kPtr kLen -> do
     alloca $ \cdbf -> do
@@ -92,7 +102,9 @@ readAllCdb key cdb = do
       case findInitResult of
         1 -> do
           values <- readAll cdbf cdb
-          return $ Right values
+          case values of
+            Right val' -> return $ Right val'
+            Left errMsg -> return $ Left errMsg
         otherwise -> return $ Left "Failed in cdb_find_init"
 
 cdbMakeFinish = WriteCdb $ \cdbm -> do
