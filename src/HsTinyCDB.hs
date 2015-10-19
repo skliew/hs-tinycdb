@@ -14,6 +14,7 @@ import Foreign.Ptr ( castPtr )
 import Control.Applicative
 import Control.Monad ( ap, liftM )
 import Data.Maybe ( maybeToList )
+import Control.Monad.Error
 
 import TinyCDB (
   CDBHandle, CDBFindHandle, CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
@@ -37,6 +38,10 @@ instance Monad m => Applicative (WriteCdb m) where
   pure = return
   (<*>) = ap
 
+instance Error Text where
+  noMsg = ""
+  strMsg str = pack str
+
 fdFromFile :: FilePath -> IO System.Posix.Types.Fd
 fdFromFile fileName = do
   handle <- openBinaryFile fileName ReadWriteMode
@@ -52,47 +57,37 @@ addKeyValue k v = WriteCdb $ \cdbm -> do
         0 -> return $ Right 0
         otherwise -> return $ Left "Failed in cdb_make_add"
 
-readCdb' :: CDBHandle -> IO (Either Text Text)
+readCdb' :: CDBHandle -> ErrorT Text IO Text
 readCdb' cdb = do
-  (CDB vPos vLen) <- peek cdb
-  val <- allocaBytes (fromIntegral vLen) (\val -> do
-           readResult <- cdb_read cdb val vLen vPos
-           case readResult of
-             0 -> do
-               let cStringLen = (val, (fromIntegral vLen))
-               text <- peekCStringLen cStringLen
-               fmap Right (peekCStringLen cStringLen)
-             otherwise -> return $ Left "unable to read value"
-         )
-  return val
+  (CDB vPos vLen) <- liftIO $ peek cdb
+  (readResult, val) <- liftIO $ allocaBytes (fromIntegral vLen) (\val -> do
+                           readResult <- cdb_read cdb val vLen vPos
+                           return (readResult, val)
+                         )
+  case readResult of
+    0 -> do
+      let cStringLen = (val, (fromIntegral vLen))
+      text <- liftIO $ peekCStringLen cStringLen
+      return text
+    otherwise -> throwError "unable to read value"
 
--- TODO use EitherT or something to make this more elegant
 readCdb key cdb = do
-  useAsPtr key $ \kPtr kLen -> do
+  liftIO $ useAsPtr key $ \kPtr kLen -> do
     result <- cdb_find cdb (castPtr kPtr) (fromIntegral kLen)
     if result > 0
-    then do
-      val <- readCdb' cdb
-      case val of
-        Right val' -> return $ Right val'
-        Left errMsg -> return $ Left errMsg
-    else return $ Left $ "Failed to find key "
+    then runErrorT $ readCdb' cdb
+    else return $ throwError "Failed to find key "
 
-readAll :: CDBFindHandle -> CDBHandle -> IO (Either Text [Text])
+readAll :: CDBFindHandle -> CDBHandle -> ErrorT Text IO [Text]
 readAll cdbf cdb = readAll' cdbf []
   where
-    readAll' :: CDBFindHandle -> [Text] -> IO (Either Text [Text])
     readAll' cdbf result = do
-      findResult <- cdb_findnext cdbf
+      findResult <- liftIO $ cdb_findnext cdbf
       if findResult > 0
       then do
         val <- readCdb' cdb
-        case val of
-          Right val' -> do
-            let result' = result ++ [val']
-            readAll' cdbf result'
-          Left errMsg -> return $ Left errMsg
-      else return $ Right result
+        readAll' cdbf (result ++ [val])
+      else return result
 
 readAllCdb :: Text -> CDBHandle -> IO (Either Text [Text])
 readAllCdb key cdb = do
@@ -100,11 +95,7 @@ readAllCdb key cdb = do
     alloca $ \cdbf -> do
       findInitResult <- cdb_findinit cdbf cdb (castPtr kPtr) (fromIntegral kLen)
       case findInitResult of
-        1 -> do
-          values <- readAll cdbf cdb
-          case values of
-            Right val' -> return $ Right val'
-            Left errMsg -> return $ Left errMsg
+        1 -> runErrorT $ readAll cdbf cdb
         otherwise -> return $ Left "Failed in cdb_find_init"
 
 cdbMakeFinish = WriteCdb $ \cdbm -> do
