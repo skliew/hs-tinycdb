@@ -14,14 +14,14 @@ insertToCdb = do
 
 testReadAll = do
   describe "readAllCdb" $ do
-    it "should read a cdb file correctly" $ do
+    it "should read all values of a key from a cdb file correctly" $ do
       useCdb "test.cdb" $ \cdb -> do
         result <- readAllCdb "5" cdb
         result `shouldBe` (Right ["6", "7"])
 
 testReadCdb = do
   describe "readCdb" $ do
-    it "should read all values of a key from a cdb file correctly" $ do
+    it "should read a cdb file correctly" $ do
       useCdb "test.cdb" $ \cdb -> do
         result <- readCdb "3" cdb
         result `shouldBe` (Right (Just "4"))
