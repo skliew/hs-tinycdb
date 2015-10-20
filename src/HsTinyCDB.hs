@@ -5,7 +5,8 @@ import System.Posix.IO
 import System.Posix.Types
 import System.Posix.Files
 import System.IO
-import Data.Text
+import Data.Text as T
+import Data.Text.IO as TIO
 import Foreign.Marshal.Alloc
 import Data.Map
 import Data.Text.Foreign
@@ -15,10 +16,13 @@ import Control.Applicative
 import Control.Monad ( ap, liftM )
 import Data.Maybe ( maybeToList )
 import Control.Monad.Error
+import Data.Either
+import Foreign.C.Types
+import Foreign.Ptr
 
 import TinyCDB (
   CDBHandle, CDBFindHandle, CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
-  cdb_init, cdb_find, cdb_free, cdb_read, cdb_findinit, cdb_findnext
+  cdb_init, cdb_find, cdb_free, cdb_read, cdb_findinit, cdb_findnext, cdb_seqnext
   )
 
 newtype WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either Text a) }
@@ -59,9 +63,23 @@ addKeyValue k v = WriteCdb $ \cdbm -> do
 
 readCdb' :: CDBHandle -> ErrorT Text IO Text
 readCdb' cdb = do
-  (CDB vPos vLen) <- liftIO $ peek cdb
+  (CDB vPos vLen _ _) <- liftIO $ peek cdb
   (readResult, val) <- liftIO $ allocaBytes (fromIntegral vLen) (\val -> do
                            readResult <- cdb_read cdb val vLen vPos
+                           return (readResult, val)
+                         )
+  case readResult of
+    0 -> do
+      let cStringLen = (val, (fromIntegral vLen))
+      text <- liftIO $ peekCStringLen cStringLen
+      return text
+    otherwise -> throwError "unable to read value"
+
+readCdbKey' :: CDBHandle -> ErrorT Text IO Text
+readCdbKey' cdb = do
+  (CDB vPos vLen kPos kLen) <- liftIO $ peek cdb
+  (readResult, val) <- liftIO $ allocaBytes (fromIntegral kLen) (\val -> do
+                           readResult <- cdb_read cdb val kLen kPos
                            return (readResult, val)
                          )
   case readResult of
@@ -130,4 +148,25 @@ useCdb fileName action = do
   handle <- fdToHandle fd
   hClose handle
   return cdbResult
+
+readCdbKeyValue' cdb = do
+  key <- runErrorT $ readCdbKey' cdb
+  value <- runErrorT $ readCdb' cdb
+  let key' = either (\_ -> "error") (\c -> c) key
+      value' = either (\_ -> "error") (\c -> c) value
+  TIO.putStrLn $ key' `T.append` ": " `T.append` value'
+
+dumpCdb' :: CDBHandle -> Ptr CUInt -> IO ()
+dumpCdb' cdb pos = do
+  seqResult <- cdb_seqnext pos cdb
+  if seqResult > 0
+  then do
+    readCdbKeyValue' cdb
+    dumpCdb' cdb pos
+  else return ()
+
+dumpCdb cdb = do
+  alloca $ \posPtr -> do
+    poke posPtr (CUInt 2048)
+    dumpCdb' cdb posPtr
 

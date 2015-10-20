@@ -9,7 +9,7 @@ import Foreign.C.Types
 
 #include <cdb.h>
 
-data CDB = CDB { position::CUInt, len::CUInt }
+data CDB = CDB { position::CUInt, len::CUInt, klen::CUInt, kpos::CUInt }
 data CDBM = CDBM
 data CDBFind = CDBFind
 type CDBHandle = Ptr CDB
@@ -34,12 +34,16 @@ instance Storable CDB where
   alignment _ = #{alignment struct cdb}
   sizeOf _ = #{size struct cdb}
   peek cdbHandle = do
-    position <- (#peek struct cdb, cdb_vpos) cdbHandle
-    len <- (#peek struct cdb, cdb_vlen) cdbHandle
-    return $ CDB position len
-  poke cdbHandle (CDB position len) = do
-    (#poke struct cdb, cdb_vpos) cdbHandle position
-    (#poke struct cdb, cdb_vlen) cdbHandle len
+    vpos <- (#peek struct cdb, cdb_vpos) cdbHandle
+    vlen <- (#peek struct cdb, cdb_vlen) cdbHandle
+    kpos <- (#peek struct cdb, cdb_kpos) cdbHandle
+    klen <- (#peek struct cdb, cdb_klen) cdbHandle
+    return $ CDB vpos vlen kpos klen
+  poke cdbHandle (CDB vPos vLen kPos kLen) = do
+    (#poke struct cdb, cdb_vpos) cdbHandle vPos
+    (#poke struct cdb, cdb_vlen) cdbHandle vLen
+    (#poke struct cdb, cdb_kpos) cdbHandle kPos
+    (#poke struct cdb, cdb_klen) cdbHandle kLen
 
 instance Storable CDBFind where
   alignment _ = #{alignment struct cdb_find}
@@ -66,4 +70,6 @@ foreign import ccall unsafe "cdb.h cdb_findinit" cdb_findinit :: CDBFindHandle -
 foreign import ccall unsafe "cdb.h cdb_findnext" cdb_findnext :: CDBFindHandle -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_read" cdb_read :: CDBHandle -> CString -> CUInt -> CUInt -> IO CInt
 foreign import ccall unsafe "cdb.h cdb_free" cdb_free :: CDBHandle -> IO ()
+
+foreign import ccall unsafe "cdb.h cdb_seqnext" cdb_seqnext :: Ptr CUInt -> CDBHandle -> IO CInt
 
