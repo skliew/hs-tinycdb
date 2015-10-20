@@ -71,6 +71,7 @@ readCdb' cdb = do
       return text
     otherwise -> throwError "unable to read value"
 
+readCdb :: Text -> CDBHandle -> IO (Either Text Text)
 readCdb key cdb = do
   liftIO $ useAsPtr key $ \kPtr kLen -> do
     result <- cdb_find cdb (castPtr kPtr) (fromIntegral kLen)
@@ -98,13 +99,14 @@ readAllCdb key cdb = do
         1 -> runErrorT $ readAll cdbf cdb
         otherwise -> return $ Left "Failed in cdb_find_init"
 
+cdbMakeFinish :: WriteCdb IO Int
 cdbMakeFinish = WriteCdb $ \cdbm -> do
   result <- cdb_make_finish cdbm
   case result of
     0 -> return $ Right 0
     _ -> return $ Left "Failed in cdb_make_finish"
 
-makeCdb :: FilePath -> WriteCdb IO Int -> IO (Either Text Int)
+makeCdb :: FilePath -> WriteCdb IO a -> IO (Either Text Int)
 makeCdb fileName action = do
   let tmpFileName = fileName ++ ".tmp"
   fd <- fdFromFile tmpFileName
@@ -117,6 +119,7 @@ makeCdb fileName action = do
   rename tmpFileName fileName
   return cdbResult
 
+useCdb :: FilePath -> ( CDBHandle -> IO a ) -> IO a
 useCdb fileName action = do
   fd <- fdFromFile fileName
   cdbResult <- alloca $ \cdb -> do
