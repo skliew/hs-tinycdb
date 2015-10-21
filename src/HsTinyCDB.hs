@@ -61,40 +61,36 @@ addKeyValue k v = WriteCdb $ \cdbm -> do
         0 -> return $ Right 0
         otherwise -> return $ Left "Failed in cdb_make_add"
 
-readCdb' :: CDBHandle -> ErrorT Text IO Text
-readCdb' cdb = do
-  (CDB vPos vLen _ _) <- liftIO $ peek cdb
-  (readResult, val) <- liftIO $ allocaBytes (fromIntegral vLen) (\val -> do
-                           readResult <- cdb_read cdb val vLen vPos
+readCdb' :: CDBHandle -> CUInt -> CUInt -> ErrorT Text IO Text
+readCdb' cdb pos len = do
+  (readResult, val) <- liftIO $ allocaBytes (fromIntegral len) (\val -> do
+                           readResult <- cdb_read cdb val len pos 
                            return (readResult, val)
                          )
   case readResult of
     0 -> do
-      let cStringLen = (val, (fromIntegral vLen))
+      let cStringLen = (val, (fromIntegral len))
       text <- liftIO $ peekCStringLen cStringLen
       return text
     otherwise -> throwError "unable to read value"
 
+
+readCdbValue' :: CDBHandle -> ErrorT Text IO Text
+readCdbValue' cdb = do
+  (CDB vPos vLen _ _) <- liftIO $ peek cdb
+  readCdb' cdb vPos vLen
+
 readCdbKey' :: CDBHandle -> ErrorT Text IO Text
 readCdbKey' cdb = do
-  (CDB vPos vLen kPos kLen) <- liftIO $ peek cdb
-  (readResult, val) <- liftIO $ allocaBytes (fromIntegral kLen) (\val -> do
-                           readResult <- cdb_read cdb val kLen kPos
-                           return (readResult, val)
-                         )
-  case readResult of
-    0 -> do
-      let cStringLen = (val, (fromIntegral vLen))
-      text <- liftIO $ peekCStringLen cStringLen
-      return text
-    otherwise -> throwError "unable to read value"
+  (CDB _ _ kPos kLen) <- liftIO $ peek cdb
+  readCdb' cdb kPos kLen
 
 readCdb :: Text -> CDBHandle -> IO (Either Text Text)
 readCdb key cdb = do
   liftIO $ useAsPtr key $ \kPtr kLen -> do
     result <- cdb_find cdb (castPtr kPtr) (fromIntegral kLen)
     if result > 0
-    then runErrorT $ readCdb' cdb
+    then runErrorT $ readCdbValue' cdb
     else return $ throwError "Failed to find key "
 
 readAll :: CDBFindHandle -> CDBHandle -> ErrorT Text IO [Text]
@@ -104,7 +100,7 @@ readAll cdbf cdb = readAll' cdbf []
       findResult <- liftIO $ cdb_findnext cdbf
       if findResult > 0
       then do
-        val <- readCdb' cdb
+        val <- readCdbValue' cdb
         readAll' cdbf (result ++ [val])
       else return result
 
@@ -151,7 +147,7 @@ useCdb fileName action = do
 
 readCdbKeyValue' cdb = do
   key <- runErrorT $ readCdbKey' cdb
-  value <- runErrorT $ readCdb' cdb
+  value <- runErrorT $ readCdbValue' cdb
   let key' = either (\_ -> "error") (\c -> c) key
       value' = either (\_ -> "error") (\c -> c) value
   TIO.putStrLn $ key' `T.append` ": " `T.append` value'

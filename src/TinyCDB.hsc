@@ -9,7 +9,7 @@ import Foreign.C.Types
 
 #include <cdb.h>
 
-data CDB = CDB { position::CUInt, len::CUInt, klen::CUInt, kpos::CUInt }
+data CDB = CDB { vPos::CUInt, vLen::CUInt, kLen::CUInt, kPos::CUInt }
 data CDBM = CDBM
 data CDBFind = CDBFind
 type CDBHandle = Ptr CDB
@@ -34,11 +34,11 @@ instance Storable CDB where
   alignment _ = #{alignment struct cdb}
   sizeOf _ = #{size struct cdb}
   peek cdbHandle = do
-    vpos <- (#peek struct cdb, cdb_vpos) cdbHandle
-    vlen <- (#peek struct cdb, cdb_vlen) cdbHandle
-    kpos <- (#peek struct cdb, cdb_kpos) cdbHandle
-    klen <- (#peek struct cdb, cdb_klen) cdbHandle
-    return $ CDB vpos vlen kpos klen
+    vPos <- (#peek struct cdb, cdb_vpos) cdbHandle
+    vLen <- (#peek struct cdb, cdb_vlen) cdbHandle
+    kPos <- (#peek struct cdb, cdb_kpos) cdbHandle
+    kLen <- (#peek struct cdb, cdb_klen) cdbHandle
+    return $ CDB vPos vLen kPos kLen
   poke cdbHandle (CDB vPos vLen kPos kLen) = do
     (#poke struct cdb, cdb_vpos) cdbHandle vPos
     (#poke struct cdb, cdb_vlen) cdbHandle vLen
