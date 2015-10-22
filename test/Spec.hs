@@ -12,21 +12,21 @@ insertToCdb = do
   addKeyValue "1" "2"
   addKeyValue "3" "4"
   addKeyValue "5" "6"
-  addKeyValue "5" "7"
+  addKeyValue "5" "700"
 
 testDumpCdb = do
   describe "dumpCdb" $ do
     it "should dump all the keys/values from a cdb file correctly" $ do
       useCdb "test.cdb" $ \cdb -> do
         (result, _) <- capture $ dumpCdb cdb
-        result `shouldBe` "+1,1:1->2\n+1,1:3->4\n+1,1:5->6\n+1,1:5->7\n"
+        result `shouldBe` "+1,1:1->2\n+1,1:3->4\n+1,1:5->6\n+1,3:5->700\n"
 
 testReadAll = do
   describe "readAllCdb" $ do
     it "should read all values of a key from a cdb file correctly" $ do
       useCdb "test.cdb" $ \cdb -> do
         result <- readAllCdb "5" cdb
-        result `shouldBe` (Right ["6", "7"])
+        result `shouldBe` (Right ["6", "700"])
 
 testReadCdb = do
   describe "readCdb" $ do

@@ -9,6 +9,7 @@ import Data.Text as T
 import Data.Text.IO as TIO
 import Foreign.Marshal.Alloc
 import Data.Text.Foreign
+import Data.Text.Encoding as E
 import Foreign.Storable
 import Foreign.Ptr ( castPtr )
 import Control.Applicative
@@ -17,6 +18,7 @@ import Control.Monad.Error
 import Data.Either ( either )
 import Foreign.C.Types ( CUInt(CUInt) )
 import Foreign.Ptr ( Ptr )
+import Data.ByteString.Unsafe ( unsafeUseAsCStringLen )
 
 import TinyCDB
 
@@ -47,10 +49,14 @@ fdFromFile fileName = do
   fd <- handleToFd handle
   return fd
 
+useAsUtf8Ptr t f = do
+  let utf8Str = E.encodeUtf8 t
+  unsafeUseAsCStringLen utf8Str f
+
 addKeyValue :: Text -> Text -> WriteCdb IO Int
 addKeyValue k v = WriteCdb $ \cdbm -> do
-  useAsPtr k $ \kPtr kLen -> do
-    useAsPtr v $ \vPtr vLen -> do
+  useAsUtf8Ptr k $ \(kPtr, kLen) -> do
+    useAsUtf8Ptr v $ \(vPtr, vLen) -> do
       result <- cdb_make_add cdbm (castPtr kPtr) (fromIntegral kLen) (castPtr vPtr) (fromIntegral vLen)
       case result of
         0 -> return $ Right 0
