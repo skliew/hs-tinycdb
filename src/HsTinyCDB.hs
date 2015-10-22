@@ -141,11 +141,14 @@ useCdb fileName action = do
   return cdbResult
 
 readCdbKeyValue' cdb = do
-  key <- runErrorT $ readCdbKey' cdb
-  value <- runErrorT $ readCdbValue' cdb
+  (CDB _ _ kPos kLen) <- peek cdb
+  key <- runErrorT $ readCdb' cdb kPos kLen
+  (CDB vPos vLen _ _ ) <- peek cdb
+  key <- runErrorT $ readCdb' cdb kPos kLen
+  value <- runErrorT $ readCdb' cdb vPos vLen
   let key' = either (\_ -> "error") (\c -> c) key
       value' = either (\_ -> "error") (\c -> c) value
-  TIO.putStrLn $ key' `T.append` ": " `T.append` value'
+  TIO.putStrLn $ "+" `T.append` (pack $ show kLen) `T.append` "," `T.append` (pack $ show vLen) `T.append` ":" `T.append` key' `T.append` "->" `T.append` value'
 
 dumpCdb' :: CDBHandle -> Ptr CUInt -> IO ()
 dumpCdb' cdb pos = do

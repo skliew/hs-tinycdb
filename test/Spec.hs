@@ -19,7 +19,7 @@ testDumpCdb = do
     it "should dump all the keys/values from a cdb file correctly" $ do
       useCdb "test.cdb" $ \cdb -> do
         (result, _) <- capture $ dumpCdb cdb
-        result `shouldBe` "1: 2\n3: 4\n5: 6\n5: 7\n"
+        result `shouldBe` "+1,1:1->2\n+1,1:3->4\n+1,1:5->6\n+1,1:5->7\n"
 
 testReadAll = do
   describe "readAllCdb" $ do
