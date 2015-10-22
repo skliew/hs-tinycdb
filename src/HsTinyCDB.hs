@@ -1,29 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 module HsTinyCDB where
 
-import System.Posix.IO
-import System.Posix.Types
-import System.Posix.Files
+import System.Posix.IO ( handleToFd, fdToHandle )
+import System.Posix.Types ( Fd )
+import System.Posix.Files ( rename )
 import System.IO
 import Data.Text as T
 import Data.Text.IO as TIO
 import Foreign.Marshal.Alloc
-import Data.Map
 import Data.Text.Foreign
 import Foreign.Storable
 import Foreign.Ptr ( castPtr )
 import Control.Applicative
 import Control.Monad ( ap, liftM )
-import Data.Maybe ( maybeToList )
 import Control.Monad.Error
-import Data.Either
-import Foreign.C.Types
-import Foreign.Ptr
+import Data.Either ( either )
+import Foreign.C.Types ( CUInt(CUInt) )
+import Foreign.Ptr ( Ptr )
 
-import TinyCDB (
-  CDBHandle, CDBFindHandle, CDBMHandle, CDB(CDB), CDBPutMode, cdb_make_start, cdb_make_add, cdb_make_exists, cdb_make_find, cdb_make_put, cdb_make_finish,
-  cdb_init, cdb_find, cdb_free, cdb_read, cdb_findinit, cdb_findnext, cdb_seqnext
-  )
+import TinyCDB
 
 newtype WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either Text a) }
 
