@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Data.Map (fromList)
 import HsTinyCDB ( makeCdb, useCdb, readCdb, addKeyValue, readAllCdb, dumpCdb )
 import Test.Hspec
 import System.Posix.Files
