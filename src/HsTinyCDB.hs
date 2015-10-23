@@ -18,6 +18,7 @@ import Control.Monad.Error
 import Data.Either ( either )
 import Foreign.C.Types ( CUInt(CUInt) )
 import Foreign.Ptr ( Ptr )
+import Foreign.C.String ( CStringLen )
 import Data.ByteString.Unsafe ( unsafeUseAsCStringLen )
 
 import TinyCDB
@@ -49,6 +50,7 @@ fdFromFile fileName = do
   fd <- handleToFd handle
   return fd
 
+useAsUtf8Ptr :: Text -> (CStringLen -> IO a) -> IO a
 useAsUtf8Ptr t f = do
   let utf8Str = E.encodeUtf8 t
   unsafeUseAsCStringLen utf8Str f
@@ -75,16 +77,10 @@ readCdb' cdb pos len = do
       return text
     otherwise -> throwError "unable to read value"
 
-
 readCdbValue' :: CDBHandle -> ErrorT Text IO Text
 readCdbValue' cdb = do
   (CDB vPos vLen _ _) <- liftIO $ peek cdb
   readCdb' cdb vPos vLen
-
-readCdbKey' :: CDBHandle -> ErrorT Text IO Text
-readCdbKey' cdb = do
-  (CDB _ _ kPos kLen) <- liftIO $ peek cdb
-  readCdb' cdb kPos kLen
 
 readCdb :: Text -> CDBHandle -> IO (Either Text Text)
 readCdb key cdb = do
@@ -146,6 +142,7 @@ useCdb fileName action = do
   hClose handle
   return cdbResult
 
+readCdbKeyValue' :: CDBHandle -> IO ()
 readCdbKeyValue' cdb = do
   (CDB _ _ kPos kLen) <- peek cdb
   key <- runErrorT $ readCdb' cdb kPos kLen
@@ -165,6 +162,7 @@ dumpCdb' cdb pos = do
     dumpCdb' cdb pos
   else return ()
 
+dumpCdb :: CDBHandle -> IO ()
 dumpCdb cdb = do
   alloca $ \posPtr -> do
     poke posPtr (CUInt 2048)
