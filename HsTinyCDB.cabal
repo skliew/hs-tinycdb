@@ -16,15 +16,14 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     HsTinyCDB, TinyCDB
-  build-depends:       base >= 4.7 && < 5,
-                       text, unix, mtl, bytestring
+  build-depends:       base >= 4.7 && < 5, unix, mtl, bytestring
   extra-libraries:     cdb
   default-language:    Haskell2010
 
 executable cdbdump
   hs-source-dirs:      src
   main-is:             CdbDump.hs
-  build-depends:       base, HsTinyCDB, unix, text, mtl, bytestring
+  build-depends:       base, HsTinyCDB, unix, mtl, bytestring
   default-language:    Haskell2010
   other-modules:       HsTinyCDB
 
@@ -32,7 +31,7 @@ test-suite HsTinyCDB-Test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  build-depends:       base, HsTinyCDB, unix, hspec, text, silently
+  build-depends:       base, HsTinyCDB, unix, hspec, silently
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

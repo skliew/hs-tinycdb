@@ -4,7 +4,6 @@ module Main where
 import HsTinyCDB ( makeCdb, useCdb, readCdb, addKeyValue, readAllCdb, dumpCdb )
 import Test.Hspec
 import System.Posix.Files
-import Data.Text
 import System.IO.Silently
 
 insertToCdb = do

@@ -5,11 +5,7 @@ import System.Posix.IO ( handleToFd, fdToHandle )
 import System.Posix.Types ( Fd )
 import System.Posix.Files ( rename )
 import System.IO
-import Data.Text as T
-import Data.Text.IO as TIO
 import Foreign.Marshal.Alloc
-import Data.Text.Foreign
-import Data.Text.Encoding as E
 import Foreign.Storable
 import Foreign.Ptr ( castPtr )
 import Control.Applicative
@@ -19,11 +15,13 @@ import Data.Either ( either )
 import Foreign.C.Types ( CUInt(CUInt) )
 import Foreign.Ptr ( Ptr )
 import Foreign.C.String ( CStringLen )
-import Data.ByteString.Unsafe ( unsafeUseAsCStringLen )
+import Data.ByteString.Unsafe ( unsafeUseAsCStringLen, unsafePackCStringLen )
+import Data.ByteString as BS
+import Data.ByteString.Char8 as BS8
 
 import TinyCDB
 
-newtype WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either Text a) }
+newtype WriteCdb m a = WriteCdb { runWriteCdb :: CDBMHandle -> m (Either ByteString a) }
 
 instance Monad m => Monad (WriteCdb m) where
   return a = WriteCdb $ \cdbm -> return $ Right a
@@ -40,9 +38,9 @@ instance Monad m => Applicative (WriteCdb m) where
   pure = return
   (<*>) = ap
 
-instance Error Text where
+instance Error ByteString where
   noMsg = ""
-  strMsg str = pack str
+  strMsg str = BS8.pack str
 
 fdFromFile :: FilePath -> IO System.Posix.Types.Fd
 fdFromFile fileName = do
@@ -50,21 +48,16 @@ fdFromFile fileName = do
   fd <- handleToFd handle
   return fd
 
-useAsUtf8Ptr :: Text -> (CStringLen -> IO a) -> IO a
-useAsUtf8Ptr t f = do
-  let utf8Str = E.encodeUtf8 t
-  unsafeUseAsCStringLen utf8Str f
-
-addKeyValue :: Text -> Text -> WriteCdb IO Int
+addKeyValue :: ByteString -> ByteString -> WriteCdb IO Int
 addKeyValue k v = WriteCdb $ \cdbm -> do
-  useAsUtf8Ptr k $ \(kPtr, kLen) -> do
-    useAsUtf8Ptr v $ \(vPtr, vLen) -> do
+  unsafeUseAsCStringLen k $ \(kPtr, kLen) -> do
+    unsafeUseAsCStringLen v $ \(vPtr, vLen) -> do
       result <- cdb_make_add cdbm (castPtr kPtr) (fromIntegral kLen) (castPtr vPtr) (fromIntegral vLen)
       case result of
         0 -> return $ Right 0
         otherwise -> return $ Left "Failed in cdb_make_add"
 
-readCdb' :: CDBHandle -> CUInt -> CUInt -> ErrorT Text IO Text
+readCdb' :: CDBHandle -> CUInt -> CUInt -> ErrorT ByteString IO ByteString
 readCdb' cdb pos len = do
   (readResult, val) <- liftIO $ allocaBytes (fromIntegral len) (\val -> do
                            readResult <- cdb_read cdb val len pos 
@@ -73,24 +66,24 @@ readCdb' cdb pos len = do
   case readResult of
     0 -> do
       let cStringLen = (val, (fromIntegral len))
-      text <- liftIO $ peekCStringLen cStringLen
+      text <- liftIO $ unsafePackCStringLen cStringLen
       return text
     otherwise -> throwError "unable to read value"
 
-readCdbValue' :: CDBHandle -> ErrorT Text IO Text
+readCdbValue' :: CDBHandle -> ErrorT ByteString IO ByteString
 readCdbValue' cdb = do
   (CDB vPos vLen _ _) <- liftIO $ peek cdb
   readCdb' cdb vPos vLen
 
-readCdb :: Text -> CDBHandle -> IO (Either Text Text)
+readCdb :: ByteString -> CDBHandle -> IO (Either ByteString ByteString)
 readCdb key cdb = do
-  liftIO $ useAsPtr key $ \kPtr kLen -> do
+  liftIO $ unsafeUseAsCStringLen key $ \(kPtr, kLen) -> do
     result <- cdb_find cdb (castPtr kPtr) (fromIntegral kLen)
     if result > 0
     then runErrorT $ readCdbValue' cdb
     else return $ throwError "Failed to find key "
 
-readAll :: CDBFindHandle -> CDBHandle -> ErrorT Text IO [Text]
+readAll :: CDBFindHandle -> CDBHandle -> ErrorT ByteString IO [ByteString]
 readAll cdbf cdb = readAll' cdbf []
   where
     readAll' cdbf result = do
@@ -101,9 +94,9 @@ readAll cdbf cdb = readAll' cdbf []
         readAll' cdbf (result ++ [val])
       else return result
 
-readAllCdb :: Text -> CDBHandle -> IO (Either Text [Text])
+readAllCdb :: ByteString -> CDBHandle -> IO (Either ByteString [ByteString])
 readAllCdb key cdb = do
-  useAsPtr key $ \kPtr kLen -> do
+  unsafeUseAsCStringLen key $ \(kPtr, kLen) -> do
     alloca $ \cdbf -> do
       findInitResult <- cdb_findinit cdbf cdb (castPtr kPtr) (fromIntegral kLen)
       case findInitResult of
@@ -117,7 +110,7 @@ cdbMakeFinish = WriteCdb $ \cdbm -> do
     0 -> return $ Right 0
     _ -> return $ Left "Failed in cdb_make_finish"
 
-makeCdb :: FilePath -> WriteCdb IO a -> IO (Either Text Int)
+makeCdb :: FilePath -> WriteCdb IO a -> IO (Either ByteString Int)
 makeCdb fileName action = do
   let tmpFileName = fileName ++ ".tmp"
   fd <- fdFromFile tmpFileName
@@ -151,7 +144,7 @@ readCdbKeyValue' cdb = do
   value <- runErrorT $ readCdb' cdb vPos vLen
   let key' = either (\_ -> "error") (\c -> c) key
       value' = either (\_ -> "error") (\c -> c) value
-  TIO.putStrLn $ "+" `T.append` (pack $ show kLen) `T.append` "," `T.append` (pack $ show vLen) `T.append` ":" `T.append` key' `T.append` "->" `T.append` value'
+  BS8.putStrLn $ "+" `BS.append` (BS8.pack $ show kLen) `BS.append` "," `BS.append` (BS8.pack $ show vLen) `BS.append` ":" `BS.append` key' `BS.append` "->" `BS.append` value'
 
 dumpCdb' :: CDBHandle -> Ptr CUInt -> IO ()
 dumpCdb' cdb pos = do
