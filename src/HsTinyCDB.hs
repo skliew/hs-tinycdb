@@ -144,7 +144,10 @@ readCdbKeyValue' cdb = do
   value <- runErrorT $ readCdb' cdb vPos vLen
   let key' = either (\_ -> "error") (\c -> c) key
       value' = either (\_ -> "error") (\c -> c) value
-  BS8.putStrLn $ "+" `BS.append` (BS8.pack $ show kLen) `BS.append` "," `BS.append` (BS8.pack $ show vLen) `BS.append` ":" `BS.append` key' `BS.append` "->" `BS.append` value'
+  BS8.putStrLn $ "+" `BS.append` (BS8.pack $ show kLen) `BS.append` ","
+                 `BS.append` (BS8.pack $ show vLen) `BS.append` ":"
+                 `BS.append` key' `BS.append` "->" `BS.append` value'
+
 
 dumpCdb' :: CDBHandle -> Ptr CUInt -> IO ()
 dumpCdb' cdb pos = do
@@ -153,7 +156,9 @@ dumpCdb' cdb pos = do
   then do
     readCdbKeyValue' cdb
     dumpCdb' cdb pos
-  else return ()
+  else do
+    BS8.putStrLn ""
+    return ()
 
 dumpCdb :: CDBHandle -> IO ()
 dumpCdb cdb = do
