@@ -28,6 +28,14 @@ executable hs-cdbdump
   ld-options:          -static -pthread
   other-modules:       HsTinyCDB
 
+executable hs-cdbquery
+  hs-source-dirs:      src
+  main-is:             CdbQuery.hs
+  build-depends:       base, HsTinyCDB, unix, mtl, bytestring
+  default-language:    Haskell2010
+  ld-options:          -static -pthread
+  other-modules:       HsTinyCDB
+
 test-suite HsTinyCDB-Test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test

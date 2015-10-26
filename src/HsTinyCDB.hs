@@ -42,9 +42,9 @@ instance Error ByteString where
   noMsg = ""
   strMsg str = BS8.pack str
 
-fdFromFile :: FilePath -> IO System.Posix.Types.Fd
-fdFromFile fileName = do
-  handle <- openBinaryFile fileName ReadWriteMode
+fdFromFile :: FilePath -> IOMode -> IO System.Posix.Types.Fd
+fdFromFile fileName mode = do
+  handle <- openBinaryFile fileName mode
   fd <- handleToFd handle
   return fd
 
@@ -113,7 +113,7 @@ cdbMakeFinish = WriteCdb $ \cdbm -> do
 makeCdb :: FilePath -> WriteCdb IO a -> IO (Either ByteString Int)
 makeCdb fileName action = do
   let tmpFileName = fileName ++ ".tmp"
-  fd <- fdFromFile tmpFileName
+  fd <- fdFromFile tmpFileName WriteMode
   cdbResult <- alloca $ \cdbm -> do
                  cdb_make_start cdbm (fromIntegral fd)
                  result <- runWriteCdb (action >> cdbMakeFinish) cdbm
@@ -123,9 +123,10 @@ makeCdb fileName action = do
   rename tmpFileName fileName
   return cdbResult
 
+-- TODO handle errors
 useCdb :: FilePath -> ( CDBHandle -> IO a ) -> IO a
 useCdb fileName action = do
-  fd <- fdFromFile fileName
+  fd <- fdFromFile fileName ReadMode
   cdbResult <- alloca $ \cdb -> do
                  cdb_init cdb (fromIntegral fd)
                  result <- action cdb
