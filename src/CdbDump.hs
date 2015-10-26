@@ -4,7 +4,7 @@ import HsTinyCDB
 
 import System.Environment
 
-usage = putStrLn "cdbdump FILENAME"
+usage = putStrLn "hs-cdbdump FILENAME"
 
 main = do
   args <- getArgs
