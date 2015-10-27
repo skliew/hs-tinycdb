@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module HsTinyCDB where
 
-import System.Posix.IO ( handleToFd, fdToHandle )
+import System.Posix.IO ( openFd, closeFd, defaultFileFlags, OpenMode(ReadOnly, ReadWrite))
 import System.Posix.Types ( Fd )
-import System.Posix.Files ( rename )
+import System.Posix.Files ( rename, unionFileModes, ownerReadMode, ownerWriteMode, groupReadMode, groupWriteMode )
 import System.IO
 import Foreign.Marshal.Alloc
 import Foreign.Storable
@@ -42,11 +42,8 @@ instance Error ByteString where
   noMsg = ""
   strMsg str = BS8.pack str
 
-fdFromFile :: FilePath -> IOMode -> IO System.Posix.Types.Fd
-fdFromFile fileName mode = do
-  handle <- openBinaryFile fileName mode
-  fd <- handleToFd handle
-  return fd
+cdbFileMode = ownerReadMode `unionFileModes` ownerWriteMode `unionFileModes`
+              groupReadMode `unionFileModes` groupWriteMode
 
 addKeyValue :: ByteString -> ByteString -> WriteCdb IO Int
 addKeyValue k v = WriteCdb $ \cdbm -> do
@@ -60,7 +57,7 @@ addKeyValue k v = WriteCdb $ \cdbm -> do
 readCdb' :: CDBHandle -> CUInt -> CUInt -> ErrorT ByteString IO ByteString
 readCdb' cdb pos len = do
   (readResult, val) <- liftIO $ allocaBytes (fromIntegral len) (\val -> do
-                           readResult <- cdb_read cdb val len pos 
+                           readResult <- cdb_read cdb val len pos
                            return (readResult, val)
                          )
   case readResult of
@@ -113,27 +110,25 @@ cdbMakeFinish = WriteCdb $ \cdbm -> do
 makeCdb :: FilePath -> WriteCdb IO a -> IO (Either ByteString Int)
 makeCdb fileName action = do
   let tmpFileName = fileName ++ ".tmp"
-  fd <- fdFromFile tmpFileName WriteMode
+  fd <- openFd tmpFileName ReadWrite (Just cdbFileMode) defaultFileFlags
   cdbResult <- alloca $ \cdbm -> do
                  cdb_make_start cdbm (fromIntegral fd)
                  result <- runWriteCdb (action >> cdbMakeFinish) cdbm
                  return result
-  handle <- fdToHandle fd
-  hClose handle
+  closeFd fd
   rename tmpFileName fileName
   return cdbResult
 
 -- TODO handle errors
 useCdb :: FilePath -> ( CDBHandle -> IO a ) -> IO a
 useCdb fileName action = do
-  fd <- fdFromFile fileName ReadMode
+  fd <- openFd fileName ReadOnly Nothing defaultFileFlags
   cdbResult <- alloca $ \cdb -> do
                  cdb_init cdb (fromIntegral fd)
                  result <- action cdb
                  cdb_free cdb
                  return result
-  handle <- fdToHandle fd
-  hClose handle
+  closeFd fd
   return cdbResult
 
 readCdbKeyValue' :: CDBHandle -> IO ()
